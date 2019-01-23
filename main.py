@@ -27,9 +27,11 @@ class MyCanvasBase(glcanvas.GLCanvas):
         self.lasty = self.y = 30
         self.size = None
         self.ratio = 1
-        self.obj = viewer.bvhreader('dance.bvh')
+        self.obj = None
+        self.frame_time = 1/30
+        #self.obj = viewer.bvhreader('dance.bvh')
         self.timer = wx.Timer(self)
-        self.timer.Start(self.obj.frame_time*1000)
+        self.timer.Start(self.frame_time*1000)
 
         self.w, self.u, self.v = np.array([0, 0, 0])
         self.at = np.array([0, 0, 0])
@@ -54,10 +56,12 @@ class MyCanvasBase(glcanvas.GLCanvas):
 
     def OnTime(self, evt):
         ...
-        self.count += 1
-        self.count = self.count % self.obj.frames
-        print(self.count)
-        self.obj.update_frame(self.count)
+        if self.obj:
+            print(self.count)
+            self.count += 1
+            self.count = self.count % self.obj.frames
+            #print(self.count)
+            self.obj.update_frame(self.count)
         self.Refresh()
 
     def OnMouseWheel(self, evt):
@@ -159,7 +163,7 @@ class MyCanvasBase(glcanvas.GLCanvas):
         glMatrixMode(GL_PROJECTION)
         #glFrustum(-self.ratio, self.ratio, -0.5, 0.5, self.zoom, 25*self.zoom)
         #glViewport(0, 0, w, h)
-        gluPerspective(45, float(w/h), 1, 1000)
+        gluPerspective(45, self.ratio, 1, 1000)
         # position viewer
         '''glMatrixMode(GL_MODELVIEW)
         glTranslatef(0.0, 0.0, -2.0)
@@ -175,7 +179,7 @@ class MyCanvasBase(glcanvas.GLCanvas):
 
 
     def OnDraw(self):
-        print("Ondraw")
+        #print("Ondraw")
         # clear color and depth buffers
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -186,10 +190,6 @@ class MyCanvasBase(glcanvas.GLCanvas):
         gluLookAt(self.cam[0], self.cam[1], self.cam[2],
                   self.at[0], self.at[1], self.at[2],
                   self.up[0], self.up[1], self.up[2])
-
-        if self.size is None:
-            self.size = self.GetClientSize()
-        w, h = self.size
 
         '''if self.mouseDown:
             w = max(w, 1.0)
@@ -207,22 +207,36 @@ class MyCanvasBase(glcanvas.GLCanvas):
         #glTranslatef(self.zoom, self.zoom, self.zoom)
 
         # draw six faces of a cube
-        drawBox()
+
         glColor3ub(255, 255, 255)
         glBegin(GL_LINES)
         #glLineWidth(3)
         for i in range(-10, 10):
-            glVertex3f(i, 0, 10)
-            glVertex3f(i, 0, -10)
+            glVertex3f(5* i, 0, 50)
+            glVertex3f(5 * i, 0, -50)
         glEnd()
         glBegin(GL_LINES)
         for i in range(-10, 10):
-            glVertex3f(10, 0, i)
-            glVertex3f(-10, 0, i)
+            glVertex3f(50, 0, 5 * i)
+            glVertex3f(-50, 0, 5 * i)
         glEnd()
-        drawJoint(self.obj.root)
+        glScalef(.3, .3, .3)
+        if self.obj:
+            drawJoint(self.obj.root)
+        else:
+            drawBox()
+
         self.SwapBuffers()
 
+
+class BvhDropper(wx.FileDropTarget):
+    def __init__(self, canvas):
+        wx.FileDropTarget.__init__(self)
+        self.canvas = canvas
+    def OnDropFiles(self, x, y, filenames):
+        for name in filenames:
+            skeleton = viewer.bvhreader(name)
+            self.canvas.obj = skeleton
 
 # ----------------------------------------------------------------------
 def drawBox():
@@ -370,6 +384,8 @@ if __name__ == '__main__':
     app = wx.App(False)
     frm = wx.Frame(None, title='GLCanvas Sample',size = (640,640))
     canvas = MyCanvasBase(frm)
+    drop = BvhDropper(canvas)
+    frm.SetDropTarget(drop)
     #canvas.SetSize((640,640))
     frm.Show()
     app.MainLoop()
